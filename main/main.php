@@ -41,10 +41,6 @@ require_once __DIR__ . '/logic.php';
           <a class="btn btn-outline" href="?month=<?= h(date('Y-m')) ?>">이번달</a>
           <a class="btn btn-outline" href="?month=<?= $nextMonth ?>">다음달 →</a>
         </div>
-        <form method="get" class="row" style="gap:6px">
-          <input type="month" name="month" value="<?= h($month) ?>">
-          <button class="btn btn-primary" type="submit">이동</button>
-        </form>
       </div>
 
       <div class="kpi">

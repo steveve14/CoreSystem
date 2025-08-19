@@ -111,6 +111,13 @@ foreach ($list as $r) {
 }
 $balance = $sumIncome - $sumExpense;
 
+$current_system_month = date('Y-m');
+if ($month === $current_system_month) {
+    $form_default_date = date('Y-m-d');
+} else {
+    $form_default_date = $month . '-01';
+}
+
 // 이전/다음 달 계산
 $monthDate = DateTime::createFromFormat('Y-m', $month) ?: new DateTime('first day of this month');
 $prevMonth = (clone $monthDate)->modify('-1 month')->format('Y-m');
