@@ -93,8 +93,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $month = $_GET['month'] ?? date('Y-m');
 if (!preg_match('/^\d{4}-\d{2}$/', $month)) $month = date('Y-m');
 
-$stmt = $db->prepare("SELECT a.*, c.category_name FROM AccountBook a LEFT JOIN Categories c ON a.category_id = c.category_id WHERE substr(a.Date,1,7)=? AND a.user_id=? ORDER BY a.Date DESC, a.AccountBook_id DESC");
-$stmt->execute([$month, $current_user_id]);
+// --- 필터 입력 값 받기 ---
+$filter_type = $_GET['filter_type'] ?? ''; // '수입' 또는 '지출'
+$filter_cat = (int)($_GET['filter_cat'] ?? 0); // category_id
+$filter_memo = trim($_GET['filter_memo'] ?? ''); // 검색할 메모 내용
+
+// --- 데이터베이스 쿼리를 동적으로 생성 ---
+$base_sql = "SELECT a.*, c.category_name 
+             FROM AccountBook a 
+             LEFT JOIN Categories c ON a.category_id = c.category_id";
+
+$where_clauses = [
+    "substr(a.Date, 1, 7) = ?",
+    "a.user_id = ?"
+];
+$params = [$month, $current_user_id];
+
+if ($filter_type !== '') {
+    $where_clauses[] = "a.transaction_type = ?";
+    $params[] = $filter_type;
+}
+if ($filter_cat > 0) {
+    $where_clauses[] = "a.category_id = ?";
+    $params[] = $filter_cat;
+}
+if ($filter_memo !== '') {
+    // LIKE 검색을 위해 값 양쪽에 %를 추가합니다.
+    $where_clauses[] = "a.memo LIKE ?";
+    $params[] = "%{$filter_memo}%";
+}
+
+$sql = $base_sql . " WHERE " . implode(" AND ", $where_clauses) . " ORDER BY a.Date DESC, a.AccountBook_id DESC";
+
+$stmt = $db->prepare($sql);
+$stmt->execute($params);
 $list = $stmt->fetchAll();
 
 $sumIncome = 0.0;
@@ -110,13 +142,6 @@ foreach ($list as $r) {
     $byCat[$catName][$r['transaction_type']] = ($byCat[$catName][$r['transaction_type']] ?? 0) + (float)$r['amount'];
 }
 $balance = $sumIncome - $sumExpense;
-
-$current_system_month = date('Y-m');
-if ($month === $current_system_month) {
-    $form_default_date = date('Y-m-d');
-} else {
-    $form_default_date = $month . '-01';
-}
 
 // 이전/다음 달 계산
 $monthDate = DateTime::createFromFormat('Y-m', $month) ?: new DateTime('first day of this month');
