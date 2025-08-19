@@ -89,14 +89,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// ---- 조회 데이터 (View를 위한 변수 준비) ----
-$month = $_GET['month'] ?? date('Y-m');
+// --- 연도와 월을 별도로 받아 처리 ---
+$selected_year = (int)($_GET['year'] ?? date('Y'));
+$selected_month = (int)($_GET['month'] ?? date('m'));
+
+// 기존 코드와 호환성을 위해 'YYYY-MM' 형식의 $month 변수를 생성합니다.
+$month = sprintf('%04d-%02d', $selected_year, $selected_month);
+
 if (!preg_match('/^\d{4}-\d{2}$/', $month)) $month = date('Y-m');
 
 // --- 필터 입력 값 받기 ---
 $filter_type = $_GET['filter_type'] ?? ''; // '수입' 또는 '지출'
 $filter_cat = (int)($_GET['filter_cat'] ?? 0); // category_id
 $filter_memo = trim($_GET['filter_memo'] ?? ''); // 검색할 메모 내용
+
 
 // --- 데이터베이스 쿼리를 동적으로 생성 ---
 $base_sql = "SELECT a.*, c.category_name 
@@ -147,6 +153,26 @@ $balance = $sumIncome - $sumExpense;
 $monthDate = DateTime::createFromFormat('Y-m', $month) ?: new DateTime('first day of this month');
 $prevMonth = (clone $monthDate)->modify('-1 month')->format('Y-m');
 $nextMonth = (clone $monthDate)->modify('+1 month')->format('Y-m');
+
+$monthDate = DateTime::createFromFormat('Y-m', $month) ?: new DateTime('first day of this month');
+$prevMonthDate = (clone $monthDate)->modify('-1 month');
+$nextMonthDate = (clone $monthDate)->modify('+1 month');
+
+// ---- Chart.js를 위한 데이터 가공 ----
+$chart_labels = [];
+$chart_income_data = [];
+$chart_expense_data = [];
+
+// 데이터가 있는 카테고리만 추출하여 라벨로 사용 (순서 보장)
+$chart_category_keys = array_keys($byCat);
+sort($chart_category_keys); // 가나다순 정렬
+
+foreach ($chart_category_keys as $category_name) {
+    $chart_labels[] = $category_name;
+    // 해당 카테고리에 수입/지출 데이터가 없으면 0을 사용
+    $chart_income_data[] = $byCat[$category_name]['수입'] ?? 0;
+    $chart_expense_data[] = $byCat[$category_name]['지출'] ?? 0;
+}
 
 // 이 파일은 HTML을 출력하지 않고 여기서 끝납니다.
 // 여기에 선언된 모든 변수($month, $list, $sumIncome 등)는

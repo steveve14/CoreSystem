@@ -17,6 +17,7 @@ require_once __DIR__ . '/logic.php';
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://cdn.jsdelivr.net/npm/sanitize.css@13.0.0/sanitize.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
@@ -58,6 +59,16 @@ require_once __DIR__ . '/logic.php';
         </div>
       </div>
     </div>
+
+    <?php if ($list): // 데이터가 있을 때만 그래프 카드를 보여줍니다. 
+    ?>
+      <div class="card">
+        <h1>월별 통계 그래프</h1>
+        <div style="height: 300px;">
+          <canvas id="monthlyChart"></canvas>
+        </div>
+      </div>
+    <?php endif; ?>
 
     <div class="grid grid-2">
       <div class="card">
@@ -137,105 +148,140 @@ require_once __DIR__ . '/logic.php';
     <div class="card">
       <!-- 월 이동 버튼이 있던 제목 영역 -->
       <h1>내역 (<?= h($month) ?>)</h1>
-      <div class="row" style="justify-content: space-between; margin-bottom: 12px; align-items: flex-start;">
-
-        <!-- 필터링 폼 -->
-        <form method="get" style="margin-bottom: 18px; background: #0b1220; padding: 12px; border-radius: 10px;">
-          <!-- 월 정보를 유지하기 위해 hidden input 추가 -->
-          <input type="hidden" name="month" value="<?= h($month) ?>">
-
-          <div class="row" style="gap: 12px;">
-            <!-- 구분 필터 -->
-            <div style="flex: 1;">
-              <label for="filter_type" class="small">구분</label>
-              <select id="filter_type" name="filter_type">
-                <option value="">전체</option>
-                <option value="수입" <?= ($filter_type ?? '') === '수입' ? 'selected' : '' ?>>수입</option>
-                <option value="지출" <?= ($filter_type ?? '') === '지출' ? 'selected' : '' ?>>지출</option>
-              </select>
-            </div>
-
-            <!-- 카테고리 필터 -->
-            <div style="flex: 1;">
-              <label for="filter_cat" class="small">카테고리</label>
-              <select id="filter_cat" name="filter_cat">
-                <option value="0">전체 카테고리</option>
-                <?php foreach ($categories as $id => $name): ?>
-                  <option value="<?= h($id) ?>" <?= (int)($filter_cat ?? 0) === $id ? 'selected' : '' ?>><?= h($name) ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-
-            <!-- 메모 검색 -->
-            <div style="flex: 2;">
-              <label for="filter_memo" class="small">메모 검색</label>
-              <input type="text" id="filter_memo" name="filter_memo" placeholder="메모 내용 검색..." value="<?= h($filter_memo ?? '') ?>">
-            </div>
-
-            <!-- 필터 적용 및 초기화 버튼 -->
-            <div class="row" style="align-self: flex-end;">
-              <button type="submit" class="btn btn-primary">적용</button>
-              <a href="?month=<?= h($month) ?>" class="btn btn-outline">초기화</a>
-            </div>
+      <form method="get" class="row" style="gap:6px; margin:0;">
+        <div class="row" style="gap: 12px;">
+          <!-- 월 선택 필터 -->
+          <div style="flex: 1;">
+            <label for="filter_cat" class="small">월</label>
+            <select id="filter_cat" name="year">
+              <?php
+              $current_year = date('Y');
+              for ($y = $current_year + 1; $y >= $current_year - 10; $y--):
+              ?>
+                <option value="<?= $y ?>" <?= $y == $selected_year ? 'selected' : '' ?>><?= $y ?>년</option>
+              <?php endfor; ?>
+            </select>
           </div>
-        </form>
 
-        <table>
-          <thead>
+          <!-- 월 선택 필터 -->
+          <div style="flex: 1;">
+            <label for="filter_cat" class="small">월</label>
+            <select id="filter_cat" name="month">
+              <?php for ($m = 1; $m <= 12; $m++): ?>
+                <option value="<?= $m ?>" <?= $m == $selected_month ? 'selected' : '' ?>><?= $m ?></option>
+              <?php endfor; ?>
+            </select>
+          </div>
+
+          <!-- 구분 필터 -->
+          <div style="flex: 1;">
+            <label for="filter_type" class="small">구분</label>
+            <select id="filter_type" name="filter_type">
+              <option value="">전체</option>
+              <option value="수입" <?= ($filter_type ?? '') === '수입' ? 'selected' : '' ?>>수입</option>
+              <option value="지출" <?= ($filter_type ?? '') === '지출' ? 'selected' : '' ?>>지출</option>
+            </select>
+          </div>
+
+          <!-- 카테고리 필터 -->
+          <div style="flex: 1;">
+            <label for="filter_cat" class="small">카테고리</label>
+            <select id="filter_cat" name="filter_cat">
+              <option value="0">카테고리</option>
+              <?php foreach ($categories as $id => $name): ?>
+                <option value="<?= h($id) ?>" <?= (int)($filter_cat ?? 0) === $id ? 'selected' : '' ?>><?= h($name) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+
+          <!-- 메모 검색 -->
+          <div style="flex: 2;">
+            <label for="filter_memo" class="small">메모 검색</label>
+            <input type="text" id="filter_memo" name="filter_memo" placeholder="메모 내용 검색..." value="<?= h($filter_memo ?? '') ?>">
+          </div>
+
+          <!-- 필터 적용 및 초기화 버튼 -->
+          <div class="row" style="align-self: flex-end;">
+            <button type="submit" class="btn btn-primary">적용</button>
+            <a href="?month=<?= h($month) ?>" class="btn btn-outline">초기화</a>
+          </div>
+        </div>
+      </form>
+
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>날짜</th>
+            <th>구분</th>
+            <th>카테고리</th>
+            <th>메모</th>
+            <th style="text-align:right;">금액</th>
+            <th style="text-align:right;">삭제</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php if (!$list): ?>
             <tr>
-              <th>ID</th>
-              <th>날짜</th>
-              <th>구분</th>
-              <th>카테고리</th>
-              <th>메모</th>
-              <th style="text-align:right;">금액</th>
-              <th style="text-align:right;">삭제</th>
+              <td colspan="7" class="muted">
+                <?php
+                // 필터 변수들이 logic.php에서 선언되었는지 확인 후 메시지 표시
+                $is_filtered = !empty($filter_type) || !empty($filter_cat) || !empty($filter_memo);
+                echo $is_filtered ? '필터 조건에 맞는 내역이 없습니다.' : '등록된 내역이 없습니다.';
+                ?>
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            <?php if (!$list): ?>
+            <?php else: foreach ($list as $r): ?>
               <tr>
-                <td colspan="7" class="muted">
-                  <?php
-                  // 필터 변수들이 logic.php에서 선언되었는지 확인 후 메시지 표시
-                  $is_filtered = !empty($filter_type) || !empty($filter_cat) || !empty($filter_memo);
-                  echo $is_filtered ? '필터 조건에 맞는 내역이 없습니다.' : '등록된 내역이 없습니다.';
-                  ?>
+                <td><?= (int)$r['AccountBook_id'] ?></td>
+                <td><?= h($r['Date']) ?></td>
+                <td>
+                  <?php $badge_class = $r['transaction_type'] === '수입' ? 'income' : 'expense'; ?>
+                  <span class="badge <?= $badge_class ?>"><?= h($r['transaction_type']) ?></span>
+                </td>
+                <td><?= h($r['category_name'] ?? '미분류') ?></td>
+                <td><?= nl2br(h($r['memo'])) ?></td>
+                <td style="text-align:right;">
+                  <?= $r['transaction_type'] === '수입' ? '₩ ' . money_fmt($r['amount']) : '-₩ ' . money_fmt($r['amount']) ?>
+                </td>
+                <td style="text-align:right;">
+                  <form method="post" onsubmit="return confirm('삭제하시겠습니까?');" style="display:inline;">
+                    <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="id" value="<?= $r['AccountBook_id'] ?>">
+                    <input type="hidden" name="month" value="<?= h($month) ?>">
+                    <button class="btn btn-danger" type="submit">삭제</button>
+                  </form>
                 </td>
               </tr>
-              <?php else: foreach ($list as $r): ?>
-                <tr>
-                  <td><?= (int)$r['AccountBook_id'] ?></td>
-                  <td><?= h($r['Date']) ?></td>
-                  <td>
-                    <?php $badge_class = $r['transaction_type'] === '수입' ? 'income' : 'expense'; ?>
-                    <span class="badge <?= $badge_class ?>"><?= h($r['transaction_type']) ?></span>
-                  </td>
-                  <td><?= h($r['category_name'] ?? '미분류') ?></td>
-                  <td><?= nl2br(h($r['memo'])) ?></td>
-                  <td style="text-align:right;">
-                    <?= $r['transaction_type'] === '수입' ? '₩ ' . money_fmt($r['amount']) : '-₩ ' . money_fmt($r['amount']) ?>
-                  </td>
-                  <td style="text-align:right;">
-                    <form method="post" onsubmit="return confirm('삭제하시겠습니까?');" style="display:inline;">
-                      <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
-                      <input type="hidden" name="action" value="delete">
-                      <input type="hidden" name="id" value="<?= $r['AccountBook_id'] ?>">
-                      <input type="hidden" name="month" value="<?= h($month) ?>">
-                      <button class="btn btn-danger" type="submit">삭제</button>
-                    </form>
-                  </td>
-                </tr>
-            <?php endforeach;
-            endif; ?>
-          </tbody>
-        </table>
-      </div>
-
-      <footer>
-        단일 파일 · SQLite · CSRF/XSS 최소 보안 · 월별 집계 · CSV 내보내기 지원
-      </footer>
+          <?php endforeach;
+          endif; ?>
+        </tbody>
+      </table>
     </div>
+
+    <footer>
+      단일 파일 · SQLite · CSRF/XSS 최소 보안 · 월별 집계 · CSV 내보내기 지원
+    </footer>
+  </div>
+
+  <script src="main_chart.js"></script>
+
+  <!-- (수정) PHP 데이터를 JS로 전달하고 차트 함수를 호출하는 "연결(bridge)" 스크립트 -->
+  <script>
+    // PHP에서 데이터가 있을 때만 이 스크립트를 실행합니다.
+    <?php if (!empty($list)): ?>
+      document.addEventListener('DOMContentLoaded', function() {
+        // 1. PHP 배열을 JavaScript 변수로 변환
+        const chartLabels = <?= json_encode($chart_labels) ?>;
+        const chartIncomeData = <?= json_encode($chart_income_data) ?>;
+        const chartExpenseData = <?= json_encode($chart_expense_data) ?>;
+
+        // 2. 외부 스크립트 파일에 있는 함수를 호출하여 데이터 전달
+        renderMonthlyChart('monthlyChart', chartLabels, chartIncomeData, chartExpenseData);
+      });
+    <?php endif; ?>
+  </script>
 </body>
 
 </html>
